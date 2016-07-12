@@ -50,6 +50,7 @@ export class GenericTablePage extends React.Component {
   constructor(props) {
     super(props);
     const dataSource = new ListView.DataSource({
+      getRowData: (data, sectionId, rowId) => data[sectionId][this.rowIds.indexOf(rowId)],
       rowHasChanged: (row1, row2) => row1 !== row2,
     });
     this.state = {
@@ -59,6 +60,7 @@ export class GenericTablePage extends React.Component {
       isAscending: true,
       selection: [],
     };
+    this.rowIds = [];
     this.columns = null;
     this.dataTypesDisplayed = [];
     this.databaseListenerId = null;
@@ -123,7 +125,8 @@ export class GenericTablePage extends React.Component {
   refreshData() {
     const { dataSource, searchTerm, sortBy, isAscending } = this.state;
     const data = this.getUpdatedData(searchTerm, sortBy, isAscending);
-    this.setState({ dataSource: dataSource.cloneWithRows(data) });
+    this.rowIds = data.map(rowData => rowData.id);
+    this.setState({ dataSource: dataSource.cloneWithRows(data, this.rowIds) });
   }
 
 /**
@@ -183,7 +186,8 @@ export class GenericTablePage extends React.Component {
     );
   }
 
-  renderRow(item) {
+  renderRow(item, sectionId, rowId) {
+    console.log(`sectionId is ${sectionId}, rowId is ${rowId}`);
     const cells = [];
     this.columns.forEach((column) => {
       const renderedCell = this.renderCell(column.key, item);

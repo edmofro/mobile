@@ -87,12 +87,6 @@ export function MenuPage(props) {
             text="Stocktakes"
             onPress={() => props.navigateTo('stocktakes', 'Stocktakes')}
           />
-          <Button
-            style={globalStyles.menuButton}
-            textStyle={globalStyles.menuButtonText}
-            text="Realm Explorer"
-            onPress={() => props.navigateTo('realmExplorer', 'Database Contents')}
-          />
         </View>
       </View>
       <View style={[globalStyles.horizontalContainer, { flex: 1, marginHorizontal: 20 }]}>

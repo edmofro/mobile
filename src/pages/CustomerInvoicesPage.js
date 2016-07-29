@@ -12,7 +12,7 @@ import { BottomConfirmModal, PageButton, SelectModal } from '../widgets';
 import globalStyles from '../globalStyles';
 import { GenericTablePage } from './GenericTablePage';
 import { createRecord } from '../database';
-import { formatStatus } from '../utilities';
+import { formatStatus, sortDataBy } from '../utilities';
 
 const DATA_TYPES_DISPLAYED = ['Transaction', 'TransactionItem', 'TransactionBatch'];
 
@@ -27,7 +27,8 @@ export class CustomerInvoicesPage extends GenericTablePage {
     super(props);
     this.state.transactions = props.database.objects('Transaction')
                                             .filtered('type == "customer_invoice"');
-    this.state.sortBy = 'otherPartyName';
+    this.state.sortBy = 'entryDate';
+    this.state.isAscending = false;
     this.state.isCreatingInvoice = false;
     this.columns = COLUMNS;
     this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
@@ -82,32 +83,26 @@ export class CustomerInvoicesPage extends GenericTablePage {
   }
 
   /**
-   * Returns updated data according to searchTerm, sortBy and isAscending. Special
-   * case for otherParty.name as realm does not allow sorting on object properties
-   * properties.
+   * Returns updated data according to searchTerm, sortBy and isAscending.
    */
   getUpdatedData(searchTerm, sortBy, isAscending) {
-    let data = this.state.transactions.filtered(
-                 'otherParty.name BEGINSWITH[c] $0 OR serialNumber BEGINSWITH[c] $0',
-                 searchTerm);
+    const data = this.state.transactions.filtered(
+      'otherParty.name BEGINSWITH[c] $0 OR serialNumber BEGINSWITH[c] $0',
+      searchTerm
+    );
 
+    let sortDataType;
     switch (sortBy) {
       case 'otherPartyName':
-        // Convert to javascript array obj then sort with standard array functions.
-        data = data.slice().sort((a, b) => a.otherPartyName.localeCompare(b.otherPartyName));
-        if (!isAscending) data.reverse();
+        sortDataType = 'string';
         break;
-      case 'serialNumber': // Special case for correct number based sorting
-        // Convert to javascript array obj then sort with standard array functions.
-        data = data.slice().sort((a, b) =>
-          Number(a.serialNumber) - Number(b.serialNumber)); // 0,1,2,3...
-        if (!isAscending) data.reverse(); // ...3,2,1,0
+      case 'serialNumber':
+        sortDataType = 'number';
         break;
       default:
-        data = data.sorted(sortBy, !isAscending); // 2nd arg: reverse sort
+        sortDataType = 'realm';
     }
-
-    return data;
+    return sortDataBy(data, sortBy, sortDataType, isAscending);
   }
 
   renderCell(key, invoice) {
@@ -209,5 +204,6 @@ const COLUMNS = [
     key: 'delete',
     width: 1,
     title: 'DELETE',
+    alignText: 'center',
   },
 ];

@@ -26,7 +26,7 @@ export const PAGE_CONTENT_PADDING_HORIZONTAL = 20;
 export const PAGE_CONTENT_PADDING_TOP = 10;
 export const PAGE_CONTENT_PADDING_BOTTOM = 20;
 export const COMPONENT_HEIGHT = 45;
-export const SEARCH_BAR_WIDTH = 600;
+export const SEARCH_BAR_WIDTH = 700;
 const PAGE_TOP_LEFT_WIDTH = SEARCH_BAR_WIDTH;
 
 export default StyleSheet.create({
@@ -226,8 +226,6 @@ export default StyleSheet.create({
   dataTableText: {
     fontFamily: APP_FONT_FAMILY,
     fontSize: 14,
-    marginLeft: 20,
-    textAlign: 'left',
     color: DARK_GREY,
   },
   dataTableHeader: {

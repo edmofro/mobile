@@ -11,6 +11,10 @@ export class Requisition extends Realm.Object {
     this.setRequestedToSuggested = this.setRequestedToSuggested.bind(this);
   }
 
+  destructor(database) {
+    database.delete('RequisitionItem', this.items);
+  }
+
   get isConfirmed() {
     return this.status === 'confirmed';
   }
@@ -33,6 +37,10 @@ export class Requisition extends Realm.Object {
 
   get totalRequiredQuantity() {
     return getTotal(this.items, 'requiredQuantity');
+  }
+
+  get numberOfItems() {
+    return this.items.length;
   }
 
   set monthsToSupply(months) {
@@ -85,7 +93,22 @@ export class Requisition extends Realm.Object {
     });
   }
 
-  finalise() {
+  /**
+   * Delete any items that aren't contributing to this requisition, in order to
+   * remove clutter
+   * @param  {Realm} database   App wide local database
+   * @return {none}
+   */
+  pruneRedundantItems(database) {
+    const itemsToPrune = [];
+    this.items.forEach((requisitionItem) => {
+      if (requisitionItem.requiredQuantity === 0) itemsToPrune.push(requisitionItem);
+    });
+    database.delete('RequisitionItem', itemsToPrune);
+  }
+
+  finalise(database) {
+    this.pruneRedundantItems(database);
     this.status = 'finalised';
   }
 }
@@ -99,7 +122,9 @@ Requisition.schema = {
     type: 'string', // imprest, forecast or request (request only used in mobile)
     entryDate: 'date',
     daysToSupply: 'double',
-    serialNumber: 'string',
+    serialNumber: { type: 'string', default: '0' },
+    requesterReference: 'string',
+    comment: { type: 'string', optional: true },
     enteredBy: { type: 'User', optional: true },
     items: { type: 'list', objectType: 'RequisitionItem' },
   },

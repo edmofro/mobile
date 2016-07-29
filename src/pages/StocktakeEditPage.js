@@ -11,7 +11,7 @@ import { View } from 'react-native';
 import { PageButton } from '../widgets';
 import globalStyles from '../globalStyles';
 import { GenericTablePage } from './GenericTablePage';
-import { parsePositiveInteger, truncateString } from '../utilities';
+import { parsePositiveInteger, truncateString, sortDataBy } from '../utilities';
 
 const DATA_TYPES_DISPLAYED = ['Stocktake', 'StocktakeItem', 'StocktakeBatch', 'ItemBatch', 'Item'];
 
@@ -49,22 +49,26 @@ export class StocktakeEditPage extends GenericTablePage {
   }
 
   /**
-   * Returns updated data according to searchTerm, sortBy and isAscending. Cannot search or sortby
-   * class calculated fields.
+   * Returns updated data according to searchTerm, sortBy and isAscending.
    */
   getUpdatedData(searchTerm, sortBy, isAscending) {
-    let data = this.state.items.filtered(
+    const data = this.state.items.filtered(
       'item.name BEGINSWITH[c] $0 OR item.code BEGINSWITH[c] $0',
       searchTerm
     );
-    if (sortBy === 'itemName') {
-      // Convert to javascript array then sort with standard array functions.
-      data = data.slice().sort((a, b) => a.item.name.localeCompare(b.item.name));
-    } else {
-      data = data.slice().sort((a, b) => a.item.code.localeCompare(b.item.code));
+    let sortDataType;
+    switch (sortBy) {
+      case 'itemCode':
+      case 'itemName':
+        sortDataType = 'string';
+        break;
+      case 'snapshotTotalQuantity':
+        sortDataType = 'number';
+        break;
+      default:
+        sortDataType = 'realm';
     }
-    if (!isAscending) data.reverse();
-    return data;
+    return sortDataBy(data, sortBy, sortDataType, isAscending);
   }
 
   renderCell(key, item) {
@@ -75,8 +79,6 @@ export class StocktakeEditPage extends GenericTablePage {
         return {
           type: this.props.stocktake.isFinalised ? 'text' : 'editable',
           cellContents: item.countedTotalQuantity !== null ? item.countedTotalQuantity : '',
-          keyboardType: 'numeric',
-          returnKeyType: 'next',
         };
     }
   }
@@ -116,6 +118,7 @@ const COLUMNS = [
     width: 1,
     title: 'ITEM CODE',
     sortable: true,
+    alignText: 'right',
   },
   {
     key: 'itemName',
@@ -127,11 +130,15 @@ const COLUMNS = [
     key: 'snapshotTotalQuantity',
     width: 1,
     title: 'SNAPSHOT QUANTITY',
+    sortable: true,
+    alignText: 'right',
   },
   {
     key: 'countedTotalQuantity',
     width: 1,
     title: 'ACTUAL QUANTITY',
+    sortable: true,
+    alignText: 'right',
   },
 ];
 

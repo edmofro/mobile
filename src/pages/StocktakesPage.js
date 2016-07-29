@@ -25,6 +25,7 @@ export class StocktakesPage extends GenericTablePage {
   constructor(props) {
     super(props);
     this.state.sortBy = 'createdDate';
+    this.state.isAscending = false;
     this.state.showCurrent = true;
     this.state.stocktakes = props.database.objects('Stocktake');
     this.columns = COLUMNS;
@@ -173,11 +174,13 @@ const COLUMNS = [
     key: 'status',
     width: 2,
     title: 'STATUS',
+    sortable: true,
   },
   {
     key: 'selected',
     width: 1,
     title: 'DELETE',
+    alignText: 'center',
   },
 ];
 

@@ -10,7 +10,7 @@ import { View } from 'react-native';
 
 import { GenericTablePage } from './GenericTablePage';
 import globalStyles from '../globalStyles';
-import { formatDate, parsePositiveInteger } from '../utilities';
+import { formatDate, parsePositiveInteger, sortDataBy } from '../utilities';
 import { createRecord } from '../database';
 import { SETTINGS_KEYS } from '../settings';
 import {
@@ -19,12 +19,14 @@ import {
   PageButton,
   PageInfo,
   PageContentModal,
+  TextEditor,
   ToggleSelector,
 } from '../widgets';
 
 const DATA_TYPES_DISPLAYED =
         ['Requisition', 'RequisitionItem', 'Item', 'ItemBatch'];
 const MODAL_KEYS = {
+  COMMENT_EDIT: 'commentEdit',
   ITEM_SELECT: 'itemSelect',
   MONTHS_SELECT: 'monthsSelect',
 };
@@ -34,7 +36,6 @@ export class RequisitionPage extends GenericTablePage {
     super(props);
     this.state.sortBy = 'itemName';
     this.state.modalKey = null;
-    this.state.pageContentModalIsOpen = false;
     this.columns = COLUMNS;
     this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
     this.getUpdatedData = this.getUpdatedData.bind(this);
@@ -44,32 +45,30 @@ export class RequisitionPage extends GenericTablePage {
     this.renderPageInfo = this.renderPageInfo.bind(this);
     this.openMonthsSelector = this.openMonthsSelector.bind(this);
     this.openItemSelector = this.openItemSelector.bind(this);
-    this.openModal = this.openModal.bind(this);
-    this.closeModal = this.closeModal.bind(this);
+    this.openCommentEditor = this.openCommentEditor.bind(this);
   }
 
   /**
    * Returns updated data according to searchTerm, sortBy and isAscending.
    */
   getUpdatedData(searchTerm, sortBy, isAscending) {
-    let data = this.props.requisition.items
+    const data = this.props.requisition.items
                  .filtered('item.name BEGINSWITH[c] $0 OR item.code BEGINSWITH[c] $0', searchTerm);
+    let sortDataType;
     switch (sortBy) {
       case 'itemCode':
-        data = data.slice().sort((a, b) =>
-          a.item.code.localeCompare(b.item.code));
-        if (!isAscending) data.reverse();
-        break;
       case 'itemName':
-        data = data.slice().sort((a, b) =>
-          a.item.name.localeCompare(b.item.name));
-        if (!isAscending) data.reverse();
+        sortDataType = 'string';
+        break;
+      case 'monthlyUsage':
+      case 'suggestedQuantity':
+      case 'requiredQuantity':
+        sortDataType = 'number';
         break;
       default:
-        data = data.sorted(sortBy, !isAscending);
-        break;
+        sortDataType = 'realm';
     }
-    return data;
+    return sortDataBy(data, sortBy, sortDataType, isAscending);
   }
 
   onAddMasterItems() {
@@ -130,12 +129,8 @@ export class RequisitionPage extends GenericTablePage {
     this.openModal(MODAL_KEYS.MONTHS_SELECT);
   }
 
-  openModal(key) {
-    this.setState({ modalKey: key, pageContentModalIsOpen: true });
-  }
-
-  closeModal() {
-    this.setState({ pageContentModalIsOpen: false });
+  openCommentEditor() {
+    this.openModal(MODAL_KEYS.COMMENT_EDIT);
   }
 
   renderPageInfo() {
@@ -156,6 +151,12 @@ export class RequisitionPage extends GenericTablePage {
           info: Math.round(this.props.requisition.monthsToSupply),
           onPress: this.openMonthsSelector,
           editableType: 'selectable',
+        },
+        {
+          title: 'Comment:',
+          info: this.props.requisition.comment,
+          onPress: this.openCommentEditor,
+          editableType: 'text',
         },
       ],
     ];
@@ -178,7 +179,6 @@ export class RequisitionPage extends GenericTablePage {
         return {
           type: this.props.requisition.isFinalised ? 'text' : 'editable',
           cellContents: Math.round(requisitionItem.requiredQuantity),
-          keyboardType: 'numeric',
         };
       case 'remove':
         return {
@@ -190,7 +190,7 @@ export class RequisitionPage extends GenericTablePage {
   }
 
   renderModalContent() {
-    const { ITEM_SELECT, MONTHS_SELECT } = MODAL_KEYS;
+    const { COMMENT_EDIT, ITEM_SELECT, MONTHS_SELECT } = MODAL_KEYS;
     switch (this.state.modalKey) {
       default:
       case ITEM_SELECT:
@@ -225,6 +225,21 @@ export class RequisitionPage extends GenericTablePage {
               this.closeModal();
             }}
             selected={this.props.requisition.monthsToSupply}
+          />
+          );
+      case COMMENT_EDIT:
+        return (
+          <TextEditor
+            text={this.props.requisition.comment}
+            onEndEditing={(newComment) => {
+              if (newComment !== this.props.requisition.comment) {
+                this.props.database.write(() => {
+                  this.props.requisition.comment = newComment;
+                  this.props.database.save('Requisition', this.props.requisition);
+                });
+              }
+              this.closeModal();
+            }}
           />
           );
     }
@@ -309,26 +324,34 @@ const COLUMNS = [
     width: 2,
     title: 'CURRENT STOCK',
     sortable: true,
+    alignText: 'right',
   },
   {
     key: 'monthlyUsage',
     width: 2,
     title: 'MONTHLY USE',
+    sortable: true,
+    alignText: 'right',
   },
   {
     key: 'suggestedQuantity',
     width: 2,
     title: 'SUGGESTED QTY',
+    sortable: true,
+    alignText: 'right',
   },
   {
     key: 'requiredQuantity',
     width: 2,
     title: 'REQUESTED QTY',
+    sortable: true,
+    alignText: 'right',
   },
   {
     key: 'remove',
     width: 1,
     title: 'REMOVE',
+    alignText: 'center',
   },
 ];
 

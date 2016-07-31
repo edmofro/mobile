@@ -40,12 +40,14 @@ export class RequisitionPage extends GenericTablePage {
     this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
     this.getUpdatedData = this.getUpdatedData.bind(this);
     this.onAddMasterItems = this.onAddMasterItems.bind(this);
+    this.onCreateAutomaticOrder = this.onCreateAutomaticOrder.bind(this);
     this.onEndEditing = this.onEndEditing.bind(this);
     this.onUseSuggestedQuantities = this.onUseSuggestedQuantities.bind(this);
     this.renderPageInfo = this.renderPageInfo.bind(this);
     this.openMonthsSelector = this.openMonthsSelector.bind(this);
     this.openItemSelector = this.openItemSelector.bind(this);
     this.openCommentEditor = this.openCommentEditor.bind(this);
+    this.getModalTitle = this.getModalTitle.bind(this);
   }
 
   /**
@@ -78,6 +80,17 @@ export class RequisitionPage extends GenericTablePage {
       if (!nameResults | nameResults.length <= 0) return;
       const thisStore = nameResults[0];
       this.props.requisition.addItemsFromMasterList(this.props.database, thisStore);
+      this.props.database.save('Requisition', this.props.requisition);
+    });
+  }
+
+  onCreateAutomaticOrder() {
+    this.props.database.write(() => {
+      const thisStoreNameId = this.props.settings.get(SETTINGS_KEYS.THIS_STORE_NAME_ID);
+      const nameResults = this.props.database.objects('Name').filtered('id == $0', thisStoreNameId);
+      if (!nameResults | nameResults.length <= 0) return;
+      const thisStore = nameResults[0];
+      this.props.requisition.createAutomaticOrder(this.props.database, thisStore);
       this.props.database.save('Requisition', this.props.requisition);
     });
   }
@@ -131,6 +144,19 @@ export class RequisitionPage extends GenericTablePage {
 
   openCommentEditor() {
     this.openModal(MODAL_KEYS.COMMENT_EDIT);
+  }
+
+  getModalTitle() {
+    const { ITEM_SELECT, COMMENT_EDIT, MONTHS_SELECT } = MODAL_KEYS;
+    switch (this.state.modalKey) {
+      default:
+      case ITEM_SELECT:
+        return 'Search for an item to add';
+      case COMMENT_EDIT:
+        return 'Edit the requisition comment';
+      case MONTHS_SELECT:
+        return 'Select the number of months stock required';
+    }
   }
 
   renderPageInfo() {
@@ -257,6 +283,13 @@ export class RequisitionPage extends GenericTablePage {
             <View style={globalStyles.pageTopRightSectionContainer}>
               <View style={globalStyles.verticalContainer}>
                 <PageButton
+                  style={globalStyles.topButton}
+                  text="Create Automatic Order"
+                  loadingText="Creating..."
+                  onPress={this.onCreateAutomaticOrder}
+                  isDisabled={this.props.requisition.isFinalised}
+                />
+                <PageButton
                   style={globalStyles.leftButton}
                   text="Use Suggested Quantities"
                   loadingText="Copying Quantities..."
@@ -291,6 +324,7 @@ export class RequisitionPage extends GenericTablePage {
           <PageContentModal
             isOpen={this.state.pageContentModalIsOpen && !this.props.requisition.isFinalised}
             onClose={this.closeModal}
+            title={this.getModalTitle()}
           >
             {this.renderModalContent()}
           </PageContentModal>

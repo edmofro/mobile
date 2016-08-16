@@ -63,6 +63,7 @@ export class StocktakeEditPage extends GenericTablePage {
         sortDataType = 'string';
         break;
       case 'snapshotTotalQuantity':
+      case 'difference':
         sortDataType = 'number';
         break;
       default:
@@ -79,7 +80,18 @@ export class StocktakeEditPage extends GenericTablePage {
         return {
           type: this.props.stocktake.isFinalised ? 'text' : 'editable',
           cellContents: item.countedTotalQuantity !== null ? item.countedTotalQuantity : '',
+          placeholder: 'No change',
         };
+      case 'difference': {
+        // Catch items with no change (null - 50 === -50)
+        if (item.countedTotalQuantity === null) return { cellContents: 0 };
+
+        const difference = item.countedTotalQuantity - item.snapshotTotalQuantity;
+        if (difference > 0) {
+          return { cellContents: `+${difference}` };
+        }
+        return { cellContents: difference };
+      }
     }
   }
 
@@ -129,14 +141,21 @@ const COLUMNS = [
   {
     key: 'snapshotTotalQuantity',
     width: 1,
-    title: 'SNAPSHOT QUANTITY',
+    title: 'SNAPSHOT\nQUANTITY',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'countedTotalQuantity',
     width: 1,
-    title: 'ACTUAL QUANTITY',
+    title: 'ACTUAL\nQUANTITY',
+    sortable: true,
+    alignText: 'right',
+  },
+  {
+    key: 'difference',
+    width: 1,
+    title: 'DIFFERENCE',
     sortable: true,
     alignText: 'right',
   },

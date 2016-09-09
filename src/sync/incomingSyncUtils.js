@@ -125,17 +125,47 @@ export function createOrUpdateRecord(database, settings, recordType, record) {
       }
       break;
     }
-    case 'MasterListNameJoin': {
-      const name = getObject(database, 'Name', record.name_ID);
-      const masterList = getObject(database, 'MasterList', record.list_master_ID);
-      name.masterList = masterList;
-      database.save('Name', name);
+    // LocalListItem not a class defined in our realm. The structure from mSupply
+    // will be replaced by storing equivalent infomation in a MasterList. LocalListItem
+    // objects will be mapped to MasterListItems in sync.
+    case 'LocalListItem': {
+      const item = getObject(database, 'Item', record.item_ID);
+      // Grabbing the masterList using list_master_name_join_ID as the join's id is used in mobile
+      // to mimic the local list join with a MasterList.
+      const masterList = getObject(database, 'MasterList',
+                                          record.list_master_name_join_ID);
+
       internalRecord = {
         id: record.ID,
-        name: name,
+        item: item,
+        imprestQuantity: parseNumber(record.imprest_quantity),
         masterList: masterList,
       };
-      database.update(recordType, internalRecord);
+      const localListItem = database.update('MasterListItem', internalRecord);
+      masterList.addItemIfUnique(localListItem);
+      break;
+    }
+    case 'MasterListNameJoin': {
+      const name = getObject(database, 'Name', record.name_ID);
+      let masterList;
+      if (!record.list_master_ID) {
+        // mSupply list_local_line don't have a list_master_ID, map the join to a MasterList
+        masterList = getObject(database, 'MasterList', record.ID);
+        masterList.name = record.description;
+        database.save('MasterList', masterList);
+      } else {
+        // Regular MasterListNameJoin
+        masterList = getObject(database, 'MasterList', record.list_master_ID);
+        internalRecord = {
+          id: record.ID,
+          name: name,
+          masterList: masterList,
+        };
+        database.update(recordType, internalRecord);
+      }
+
+      name.addMasterListIfUnique(masterList);
+      database.save('Name', name);
       break;
     }
     case 'MasterList': {
@@ -358,7 +388,7 @@ export function createOrUpdateRecord(database, settings, recordType, record) {
       const transactionBatch = database.update(recordType, internalRecord);
       transaction.addBatchIfUnique(database, transactionBatch);
       database.save('Transaction', transaction);
-      itemBatch.addTransactionBatch(transactionBatch);
+      itemBatch.addTransactionBatchIfUnique(transactionBatch);
       database.save('ItemBatch', itemBatch);
       break;
     }
@@ -377,6 +407,13 @@ export function createOrUpdateRecord(database, settings, recordType, record) {
  * @return {none}
  */
 function deleteRecord(database, recordType, primaryKey, primaryKeyField = 'id') {
+  // 'delete' is a reserved word, deleteRecord is in the upper scope, so here we have:
+  const obliterate = () => {
+    const deleteResults = database.objects(recordType)
+                                  .filtered(`${primaryKeyField} == $0`, primaryKey);
+    if (deleteResults && deleteResults.length > 0) database.delete(recordType, deleteResults[0]);
+  };
+
   switch (recordType) {
     case 'Item':
     case 'ItemBatch':
@@ -385,7 +422,6 @@ function deleteRecord(database, recordType, primaryKey, primaryKeyField = 'id') 
     case 'ItemStoreJoin':
     case 'MasterList':
     case 'MasterListItem':
-    case 'MasterListNameJoin':
     case 'Name':
     case 'NameStoreJoin':
     case 'NumberSequence':
@@ -397,9 +433,23 @@ function deleteRecord(database, recordType, primaryKey, primaryKeyField = 'id') 
     case 'Transaction':
     case 'TransactionBatch':
     case 'TransactionCategory': {
-      const deleteResults = database.objects(recordType)
-                                    .filtered(`${primaryKeyField} == $0`, primaryKey);
-      if (deleteResults && deleteResults.length > 0) database.delete(recordType, deleteResults[0]);
+      obliterate();
+      break;
+    }
+    // LocalListItem is mimicked with MasterListItem
+    case 'LocalListItem':
+      deleteRecord(database, 'MasterListItem', primaryKey, primaryKeyField);
+      break;
+    case 'MasterListNameJoin': {
+      // Joins for local lists are mapped to and mimicked by a MasterList of the same id.
+      const masterList = database.objects('MasterList').filtered('id == $0', primaryKey)[0];
+      if (masterList) {
+        // Is a local list, so delete the MasterList that was created for it.
+        deleteRecord(database, 'MasterList', primaryKey, primaryKeyField);
+      } else {
+        // Delete the MasterListNameJoin as in the normal/expected case.
+        obliterate();
+      }
       break;
     }
     default:
@@ -423,7 +473,8 @@ export function sanityCheckIncomingRecord(recordType, record) {
     ItemBatch: ['item_ID', 'pack_size', 'quantity', 'batch', 'expiry_date',
                 'cost_price', 'sell_price'],
     ItemStoreJoin: ['item_ID', 'store_ID'],
-    MasterListNameJoin: ['name_ID', 'list_master_ID'],
+    LocalListItem: ['item_ID', 'list_master_name_join_ID'],
+    MasterListNameJoin: ['description', 'name_ID', 'list_master_ID'],
     MasterList: ['description'],
     MasterListItem: ['item_ID'],
     Name: ['name', 'code', 'type', 'customer', 'supplier', 'manufacturer'],
@@ -461,121 +512,9 @@ function getObject(database, type, primaryKey, primaryKeyField = 'id') {
   if (!primaryKey || primaryKey.length < 1) return null;
   const results = database.objects(type).filtered(`${primaryKeyField} == $0`, primaryKey);
   if (results.length > 0) return results[0];
-  const placeholder = generatePlaceholder(type, primaryKey);
-  const ret = database.create(type, placeholder);
-  return ret;
-}
-
-/**
- * Generate json representing the type of database object specified, with placeholder
- * values in all fields other than the primary key.
- * @param  {string} type         The type of database object
- * @param  {string} primaryKey   The primary key of the database object, usually its id
- * @return {object}              Json object representing a placeholder of the given type
- */
-function generatePlaceholder(type, primaryKey) {
-  let placeholder;
-  const placeholderString = 'placeholder';
-  const placeholderNumber = 0;
-  const placeholderDate = new Date();
-  switch (type) {
-    case 'Address':
-      placeholder = {
-        id: primaryKey,
-      };
-      return placeholder;
-    case 'Item':
-      placeholder = {
-        id: primaryKey,
-        code: placeholderString,
-        name: placeholderString,
-        defaultPackSize: placeholderNumber,
-      };
-      return placeholder;
-    case 'ItemCategory':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-      };
-      return placeholder;
-    case 'ItemDepartment':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-      };
-      return placeholder;
-    case 'ItemBatch':
-      placeholder = {
-        id: primaryKey,
-        packSize: placeholderNumber,
-        numberOfPacks: placeholderNumber,
-        expiryDate: placeholderDate,
-        batch: placeholderString,
-        costPrice: placeholderNumber,
-        sellPrice: placeholderNumber,
-      };
-      return placeholder;
-    case 'MasterList':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-      };
-      return placeholder;
-    case 'Name':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-        code: placeholderString,
-        type: placeholderString,
-        isCustomer: false,
-        isSupplier: false,
-        isManufacturer: false,
-      };
-      return placeholder;
-    case 'NumberSequence':
-      placeholder = {
-        id: generateUUID(),
-        sequenceKey: primaryKey,
-      };
-      return placeholder;
-    case 'Stocktake':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-        createdDate: placeholderDate,
-        status: placeholderString,
-        serialNumber: placeholderString,
-      };
-      return placeholder;
-    case 'Transaction':
-      placeholder = {
-        id: primaryKey,
-        serialNumber: placeholderString,
-        comment: placeholderString,
-        entryDate: placeholderDate,
-        type: placeholderString,
-        status: placeholderString,
-        theirRef: placeholderString,
-      };
-      return placeholder;
-    case 'TransactionCategory':
-      placeholder = {
-        id: primaryKey,
-        name: placeholderString,
-        code: placeholderString,
-        type: placeholderString,
-      };
-      return placeholder;
-    case 'User':
-      placeholder = {
-        id: primaryKey,
-        username: placeholderString,
-        passwordHash: placeholderString,
-      };
-      return placeholder;
-    default:
-      throw new Error('Unsupported database object type.');
-  }
+  const defaultObject = {};
+  defaultObject[primaryKeyField] = primaryKey;
+  return database.create(type, defaultObject);
 }
 
 /**

@@ -27,6 +27,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { ListView } from 'realm/react-native';
 import { SearchBar } from '../widgets';
+import { tableStrings } from '../localization';
 
 /**
  * Provides a generic implementation of a standard page in mSupply Mobile, which
@@ -39,12 +40,18 @@ import { SearchBar } from '../widgets';
  *         											 don't override if row should not be pressable
  * @method onEndEditing(key, rowData, newValue) Handles user input to an editable cell
  *         											 don't override if row should not be pressable
- * @const  {array}  cellRefsMap  Stores references to TextInputs in editableCells so next button
+ * @field  {array}  cellRefsMap  Stores references to TextInputs in editableCells so next button
  *                               on native keyboard focuses the next cell. Order is left to
  *                               right within a row, then next row.
  * @field  {array}  columns      An array of objects defining each of the columns.
- *         											 Each column must contain: key, width, title. Each
+ *         											 Each column must contain: key, width, titleKey. Each
  *         											 may optionally also contain a boolean 'sortable'.
+ * @field  {array}  dataTypesSynchronised      Data types visible in the table displayed
+ *         																		 on this page, that should therefore cause
+ *         																		 an update if changed by sync
+ * @field  {string} finalisableDataType        The data type that can be finalised on this
+ *         																		 page, that should therefore cause an update
+ *         																		 if changed by being finalised
  * @state  {ListView.DataSource} dataSource    DataTable input, used to update rows
  *         																		 being rendered
  * @state  {string}              searchTerm    Current term user has entered in search bar
@@ -73,7 +80,7 @@ export class GenericTablePage extends React.Component {
     this.cellRefsMap = {}; // { rowId: reference, rowId: reference, ...}
     this.columns = null;
     this.dataTableRef = null;
-    this.dataTypesDisplayed = [];
+    this.dataTypesSynchronised = [];
     this.databaseListenerId = null;
     this.onSearchChange = this.onSearchChange.bind(this);
     this.onColumnSort = this.onColumnSort.bind(this);
@@ -98,12 +105,26 @@ export class GenericTablePage extends React.Component {
     this.refreshData();
   }
 
+  /**
+   * Refresh data every time the page becomes the top route, so that changes will show
+   * when a user returns to the page using the back button.
+   */
+  componentWillReceiveProps(props) {
+    if (!this.props.topRoute && props.topRoute) this.refreshData();
+  }
+
   componentWillUnmount() {
     this.props.database.removeListener(this.databaseListenerId);
   }
 
-  onDatabaseEvent(changeType, recordType) {
-    if (this.dataTypesDisplayed.indexOf(recordType) >= 0) this.refreshData();
+  // Refetch data and render the list any time sync changes data displayed, or the
+  // record is finalised
+  onDatabaseEvent(changeType, recordType, record, causedBy) {
+    // Ensure sync updates are immediately visible
+    if (causedBy === 'sync' &&
+        this.dataTypesSynchronised.indexOf(recordType) >= 0) this.refreshData();
+    // Ensure finalising updates data for the primary data type
+    else if (recordType === this.finalisableDataType && record.isFinalised) this.refreshData();
   }
 
   onSearchChange(event) {
@@ -259,7 +280,7 @@ export class GenericTablePage extends React.Component {
           onPress={sortFunction}
           isAscending={this.state.isAscending}
           isSelected={this.state.sortBy === column.key}
-          text={column.title}
+          text={tableStrings[column.titleKey]}
         />
       );
     });
@@ -349,8 +370,11 @@ export class GenericTablePage extends React.Component {
               selectTextOnFocus={true}
               placeholder={renderedCell.placeholder}
               keyboardType={renderedCell.keyboardType || 'numeric'}
-              onEndEditing={this.onEndEditing &&
-                            ((target, value) => this.onEndEditing(column.key, target, value))}
+              onEndEditing={(target, value) => {
+                if (!this.onEndEditing) return;
+                this.onEndEditing(column.key, target, value);
+                this.refreshData();
+              }}
               onSubmitEditing={() => this.focusNextField(parseInt(rowId, 10))}
               target={rowData}
               value={renderedCell.cellContents}
@@ -427,6 +451,7 @@ export class GenericTablePage extends React.Component {
 
 GenericTablePage.propTypes = {
   database: React.PropTypes.object,
+  topRoute: React.PropTypes.bool,
 };
 
 const localStyles = StyleSheet.create({

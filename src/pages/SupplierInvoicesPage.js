@@ -8,8 +8,9 @@
 import React from 'react';
 import { GenericTablePage } from './GenericTablePage';
 import { formatStatus, sortDataBy } from '../utilities';
+import { navStrings } from '../localization';
 
-const DATA_TYPES_DISPLAYED = ['Transaction', 'TransactionItem', 'TransactionBatch'];
+const DATA_TYPES_SYNCHRONISED = ['Transaction'];
 
 /**
 * Renders the page for displaying SupplierInvoices.
@@ -26,14 +27,14 @@ export class SupplierInvoicesPage extends GenericTablePage {
                                             .filtered('type == "supplier_invoice"')
                                             .filtered('otherParty.type != "inventory_adjustment"');
     this.columns = COLUMNS;
-    this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
+    this.dataTypesSynchronised = DATA_TYPES_SYNCHRONISED;
     this.getUpdatedData = this.getUpdatedData.bind(this);
     this.onRowPress = this.onRowPress.bind(this);
   }
 
   onRowPress(invoice) {
     this.props.navigateTo('supplierInvoice',
-                          `Invoice ${invoice.serialNumber}`,
+                          `${navStrings.invoice} ${invoice.serialNumber}`,
                           { transaction: invoice });
   }
 
@@ -77,24 +78,24 @@ const COLUMNS = [
   {
     key: 'serialNumber',
     width: 1,
-    title: 'INVOICE NUM.',
+    titleKey: 'invoice_number',
     sortable: true,
   },
   {
     key: 'status',
     width: 1,
-    title: 'STATUS',
+    titleKey: 'status',
     sortable: true,
   },
   {
     key: 'entryDate',
     width: 1,
-    title: 'ENTERED DATE',
+    titleKey: 'entered_date',
     sortable: true,
   },
   {
     key: 'comment',
     width: 3,
-    title: 'COMMENT',
+    titleKey: 'comment',
   },
 ];

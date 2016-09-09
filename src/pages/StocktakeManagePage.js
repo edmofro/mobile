@@ -16,8 +16,9 @@ import { Button, BottomModal, TextInput, ToggleBar } from '../widgets';
 import globalStyles from '../globalStyles';
 import { GenericTablePage } from './GenericTablePage';
 import { createRecord } from '../database';
+import { buttonStrings, modalStrings } from '../localization';
 
-const DATA_TYPES_DISPLAYED = ['Item'];
+const DATA_TYPES_SYNCHRONISED = ['Item', 'ItemBatch'];
 
 /**
 * Renders the page for managing a stocktake.
@@ -34,7 +35,7 @@ export class StocktakeManagePage extends GenericTablePage {
     this.state.showItemsWithNoStock = true;
     this.state.sortBy = 'name';
     this.columns = COLUMNS;
-    this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
+    this.dataTypesSynchronised = DATA_TYPES_SYNCHRONISED;
     this.onConfirmPress = this.onConfirmPress.bind(this);
   }
 
@@ -56,30 +57,32 @@ export class StocktakeManagePage extends GenericTablePage {
   }
 
   onConfirmPress() {
-    const { selection } = this.state;
-    const { database, navigateTo, currentUser } = this.props;
-    let { stocktake } = this.props;
-    const { stocktakeName } = this.state;
+    this.props.runWithLoadingIndicator(() => {
+      const { selection } = this.state;
+      const { database, navigateTo, currentUser } = this.props;
+      let { stocktake } = this.props;
+      const { stocktakeName } = this.state;
 
-    database.write(() => {
-      // If no stocktake came in props, make a new one
-      if (!stocktake) stocktake = createRecord(database, 'Stocktake', currentUser);
+      database.write(() => {
+        // If no stocktake came in props, make a new one
+        if (!stocktake) stocktake = createRecord(database, 'Stocktake', currentUser);
 
-      stocktake.setItemsByID(database, selection);
+        stocktake.setItemsByID(database, selection);
 
-      if (stocktakeName !== '' && stocktakeName !== stocktake.name) {
-        stocktake.name = stocktakeName;
-      }
-      database.save('Stocktake', stocktake);
+        if (stocktakeName !== '' && stocktakeName !== stocktake.name) {
+          stocktake.name = stocktakeName;
+        }
+        database.save('Stocktake', stocktake);
+      });
+
+      navigateTo(
+        'stocktakeEditor',
+        stocktake.name,
+        { stocktake: stocktake },
+        // Coming from StocktakesPage : coming from StocktakeEditPage.
+        !this.props.stocktake ? 'replace' : 'replacePreviousAndPop',
+      );
     });
-
-    navigateTo(
-      'stocktakeEditor',
-      stocktake.name,
-      { stocktake: stocktake },
-      // Coming from StocktakesPage : coming from StocktakeEditPage.
-      !this.props.stocktake ? 'replace' : 'replacePreviousAndPop',
-    );
   }
 
   toggleSelectAllItems(isAllItemsSelected) {
@@ -190,12 +193,12 @@ export class StocktakeManagePage extends GenericTablePage {
                 toggleOnStyle={globalStyles.toggleOptionSelected}
                 toggles={[
                   {
-                    text: 'Hide Stockouts',
+                    text: buttonStrings.hide_stockouts,
                     onPress: () => this.toggleShowItemsWithNoStock(),
                     isOn: !showItemsWithNoStock,
                   },
                   {
-                    text: 'All Items Selected',
+                    text: buttonStrings.all_items_selected,
                     onPress: () => this.toggleSelectAllItems(isAllItemsSelected),
                     isOn: isAllItemsSelected,
                   },
@@ -212,15 +215,14 @@ export class StocktakeManagePage extends GenericTablePage {
               style={globalStyles.modalTextInput}
               textStyle={globalStyles.modalText}
               placeholderTextColor="white"
-              placeholder="Give your stocktake a name"
+              placeholder={modalStrings.give_your_stocktake_a_name}
               value={this.state.stocktakeName}
               onChangeText={(text) => this.setState({ stocktakeName: text })}
             />
             <Button
               style={[globalStyles.button, globalStyles.modalOrangeButton]}
               textStyle={[globalStyles.buttonText, globalStyles.modalButtonText]}
-              text={!stocktake ? 'Create' : 'Confirm'}
-              loadingText={!stocktake ? 'Creating...' : 'Confirming...'}
+              text={!stocktake ? modalStrings.create : modalStrings.confirm}
               onPress={this.onConfirmPress}
             />
           </BottomModal>
@@ -241,20 +243,20 @@ const COLUMNS = [
   {
     key: 'code',
     width: 2,
-    title: 'ITEM CODE',
+    titleKey: 'item_code',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'name',
     width: 6,
-    title: 'ITEM NAME',
+    titleKey: 'item_name',
     sortable: true,
   },
   {
     key: 'selected',
     width: 1,
-    title: 'SELECTED  ',
+    titleKey: 'selected',
     sortable: true,
     alignText: 'center',
   },

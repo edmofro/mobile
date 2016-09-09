@@ -93,12 +93,14 @@ export class Transaction extends Realm.Object {
   addItemsFromMasterList(database) {
     if (!this.isCustomerInvoice) throw new Error(`Cannot add master lists to ${this.type}`);
     if (this.isFinalised) throw new Error('Cannot add items to a finalised transaction');
-    if (this.otherParty && this.otherParty.masterList && this.otherParty.masterList.items) {
-      const itemsToAdd = complement(this.otherParty.masterList.items,
-                                    this.items,
-                                    (item) => item.itemId);
-      itemsToAdd.forEach(masterListItem =>
-        createRecord(database, 'TransactionItem', this, masterListItem.item));
+    if (this.otherParty) {
+      this.otherParty.masterLists.forEach((masterList) => {
+        const itemsToAdd = complement(masterList.items,
+                                      this.items,
+                                      (item) => item.itemId);
+        itemsToAdd.forEach(masterListItem =>
+          createRecord(database, 'TransactionItem', this, masterListItem.item));
+      });
     }
   }
 
@@ -158,9 +160,8 @@ export class Transaction extends Realm.Object {
       transactionItem.batches.forEach((transactionBatch) => {
         const itemBatch = transactionBatch.itemBatch;
         const newNumberOfPacks = this.isIncoming ?
-          itemBatch.numberOfPacks + transactionBatch.numberOfPacks
-          : itemBatch.numberOfPacks - transactionBatch.numberOfPacks;
-
+          itemBatch.numberOfPacks + transactionBatch.numberOfPacks :
+          itemBatch.numberOfPacks - transactionBatch.numberOfPacks;
         itemBatch.packSize = transactionBatch.packSize;
         itemBatch.numberOfPacks = newNumberOfPacks;
         itemBatch.expiryDate = transactionBatch.expiryDate;
@@ -168,7 +169,6 @@ export class Transaction extends Realm.Object {
         itemBatch.costPrice = transactionBatch.costPrice;
         itemBatch.sellPrice = transactionBatch.sellPrice;
         database.save('ItemBatch', itemBatch);
-        database.save('TransactionBatch', transactionBatch);
       });
     });
     this.confirmDate = new Date();
@@ -195,12 +195,12 @@ Transaction.schema = {
   primaryKey: 'id',
   properties: {
     id: 'string',
-    serialNumber: 'string',
+    serialNumber: { type: 'string', default: 'placeholderSerialNumber' },
     otherParty: { type: 'Name', optional: true },
     comment: { type: 'string', optional: true },
-    entryDate: 'date',
-    type: 'string',
-    status: 'string',
+    entryDate: { type: 'date', default: new Date() },
+    type: { type: 'string', default: 'placeholderType' },
+    status: { type: 'string', default: 'new' },
     confirmDate: { type: 'date', optional: true },
     enteredBy: { type: 'User', optional: true },
     theirRef: { type: 'string', optional: true }, // An external reference code

@@ -13,6 +13,7 @@ import globalStyles from '../globalStyles';
 import { formatDate, parsePositiveInteger, sortDataBy } from '../utilities';
 import { createRecord } from '../database';
 import { SETTINGS_KEYS } from '../settings';
+import { buttonStrings, modalStrings, pageInfoStrings } from '../localization';
 import {
   AutocompleteSelector,
   BottomConfirmModal,
@@ -23,8 +24,7 @@ import {
   ToggleSelector,
 } from '../widgets';
 
-const DATA_TYPES_DISPLAYED =
-        ['Requisition', 'RequisitionItem', 'Item', 'ItemBatch'];
+const DATA_TYPES_SYNCHRONISED = ['RequisitionItem', 'Item', 'ItemBatch'];
 const MODAL_KEYS = {
   COMMENT_EDIT: 'commentEdit',
   ITEM_SELECT: 'itemSelect',
@@ -37,7 +37,8 @@ export class RequisitionPage extends GenericTablePage {
     this.state.sortBy = 'itemName';
     this.state.modalKey = null;
     this.columns = COLUMNS;
-    this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
+    this.dataTypesSynchronised = DATA_TYPES_SYNCHRONISED;
+    this.finalisableDataType = 'Requisition';
     this.getUpdatedData = this.getUpdatedData.bind(this);
     this.onAddMasterItems = this.onAddMasterItems.bind(this);
     this.onCreateAutomaticOrder = this.onCreateAutomaticOrder.bind(this);
@@ -74,25 +75,31 @@ export class RequisitionPage extends GenericTablePage {
   }
 
   onAddMasterItems() {
-    this.props.database.write(() => {
-      const thisStoreNameId = this.props.settings.get(SETTINGS_KEYS.THIS_STORE_NAME_ID);
-      const nameResults = this.props.database.objects('Name').filtered('id == $0', thisStoreNameId);
-      if (!nameResults | nameResults.length <= 0) return;
-      const thisStore = nameResults[0];
-      this.props.requisition.addItemsFromMasterList(this.props.database, thisStore);
-      this.props.database.save('Requisition', this.props.requisition);
+    this.props.runWithLoadingIndicator(() => {
+      this.props.database.write(() => {
+        this.props.requisition.addItemsFromMasterList(this.props.database, this.getThisStore());
+        this.props.database.save('Requisition', this.props.requisition);
+      });
     });
+    this.refreshData();
   }
 
   onCreateAutomaticOrder() {
-    this.props.database.write(() => {
-      const thisStoreNameId = this.props.settings.get(SETTINGS_KEYS.THIS_STORE_NAME_ID);
-      const nameResults = this.props.database.objects('Name').filtered('id == $0', thisStoreNameId);
-      if (!nameResults | nameResults.length <= 0) return;
-      const thisStore = nameResults[0];
-      this.props.requisition.createAutomaticOrder(this.props.database, thisStore);
-      this.props.database.save('Requisition', this.props.requisition);
+    this.props.runWithLoadingIndicator(() => {
+      this.props.database.write(() => {
+        this.props.requisition.createAutomaticOrder(this.props.database, this.getThisStore());
+        this.props.database.save('Requisition', this.props.requisition);
+      });
     });
+    this.refreshData();
+  }
+
+  getThisStore() {
+    const thisStoreNameId = this.props.settings.get(SETTINGS_KEYS.THIS_STORE_NAME_ID);
+    const nameResults = this.props.database.objects('Name')
+                                           .filtered('id == $0', thisStoreNameId);
+    if (!nameResults | nameResults.length <= 0) return null;
+    return nameResults[0];
   }
 
   /**
@@ -127,11 +134,14 @@ export class RequisitionPage extends GenericTablePage {
   }
 
   onUseSuggestedQuantities() {
-    const { database, requisition } = this.props;
-    database.write(() => {
-      requisition.setRequestedToSuggested(database);
-      database.save('Requisition', requisition);
+    this.props.runWithLoadingIndicator(() => {
+      const { database, requisition } = this.props;
+      database.write(() => {
+        requisition.setRequestedToSuggested(database);
+        database.save('Requisition', requisition);
+      });
     });
+    this.refreshData();
   }
 
   openItemSelector() {
@@ -151,11 +161,11 @@ export class RequisitionPage extends GenericTablePage {
     switch (this.state.modalKey) {
       default:
       case ITEM_SELECT:
-        return 'Search for an item to add';
+        return modalStrings.search_for_an_item_to_add;
       case COMMENT_EDIT:
-        return 'Edit the requisition comment';
+        return modalStrings.edit_the_requisition_comment;
       case MONTHS_SELECT:
-        return 'Select the number of months stock required';
+        return modalStrings.select_the_number_of_months_stock_required;
     }
   }
 
@@ -163,23 +173,23 @@ export class RequisitionPage extends GenericTablePage {
     const infoColumns = [
       [
         {
-          title: 'Entry Date:',
+          title: `${pageInfoStrings.entry_date}:`,
           info: formatDate(this.props.requisition.entryDate),
         },
         {
-          title: 'Entered By:',
+          title: `${pageInfoStrings.entered_by}:`,
           info: this.props.requisition.enteredByName,
         },
       ],
       [
         {
-          title: 'Months Stock Required:',
+          title: `${pageInfoStrings.months_stock_required}:`,
           info: Math.round(this.props.requisition.monthsToSupply),
           onPress: this.openMonthsSelector,
           editableType: 'selectable',
         },
         {
-          title: 'Comment:',
+          title: `${pageInfoStrings.comment}:`,
           info: this.props.requisition.comment,
           onPress: this.openCommentEditor,
           editableType: 'text',
@@ -233,6 +243,7 @@ export class RequisitionPage extends GenericTablePage {
                   database.save('Requisition', requisition);
                 }
               });
+              this.refreshData();
               this.closeModal();
             }}
             renderLeftText={(item) => `${item.name}`}
@@ -248,6 +259,7 @@ export class RequisitionPage extends GenericTablePage {
                 this.props.requisition.monthsToSupply = number;
                 this.props.database.save('Requisition', this.props.requisition);
               });
+              this.refreshData();
               this.closeModal();
             }}
             selected={this.props.requisition.monthsToSupply}
@@ -284,15 +296,13 @@ export class RequisitionPage extends GenericTablePage {
               <View style={globalStyles.verticalContainer}>
                 <PageButton
                   style={globalStyles.topButton}
-                  text="Create Automatic Order"
-                  loadingText="Creating..."
+                  text={buttonStrings.create_automatic_order}
                   onPress={this.onCreateAutomaticOrder}
                   isDisabled={this.props.requisition.isFinalised}
                 />
                 <PageButton
                   style={globalStyles.leftButton}
-                  text="Use Suggested Quantities"
-                  loadingText="Copying Quantities..."
+                  text={buttonStrings.use_suggested_quantities}
                   onPress={this.onUseSuggestedQuantities}
                   isDisabled={this.props.requisition.isFinalised}
                 />
@@ -300,13 +310,12 @@ export class RequisitionPage extends GenericTablePage {
               <View style={globalStyles.verticalContainer}>
                 <PageButton
                   style={globalStyles.topButton}
-                  text="New Item"
+                  text={buttonStrings.new_item}
                   onPress={() => this.openModal(MODAL_KEYS.ITEM_SELECT)}
                   isDisabled={this.props.requisition.isFinalised}
                 />
                 <PageButton
-                  text="Add Master List Items"
-                  loadingText="Adding..."
+                  text={buttonStrings.add_master_list_items}
                   onPress={this.onAddMasterItems}
                   isDisabled={this.props.requisition.isFinalised}
                 />
@@ -316,10 +325,10 @@ export class RequisitionPage extends GenericTablePage {
           {this.renderDataTable()}
           <BottomConfirmModal
             isOpen={this.state.selection.length > 0 && !this.props.requisition.isFinalised}
-            questionText="Are you sure you want to remove these items?"
+            questionText={modalStrings.remove_these_items}
             onCancel={() => this.onDeleteCancel()}
             onConfirm={() => this.onDeleteConfirm()}
-            confirmText="Remove"
+            confirmText={modalStrings.remove}
           />
           <PageContentModal
             isOpen={this.state.pageContentModalIsOpen && !this.props.requisition.isFinalised}
@@ -344,47 +353,47 @@ const COLUMNS = [
   {
     key: 'itemCode',
     width: 1,
-    title: 'CODE',
+    titleKey: 'code',
     sortable: true,
   },
   {
     key: 'itemName',
     width: 4,
-    title: 'ITEM NAME',
+    titleKey: 'item_name',
     sortable: true,
   },
   {
     key: 'stockOnHand',
     width: 2,
-    title: 'CURRENT STOCK',
+    titleKey: 'current_stock',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'monthlyUsage',
     width: 2,
-    title: 'MONTHLY USE',
+    titleKey: 'monthly_usage',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'suggestedQuantity',
     width: 2,
-    title: 'SUGGESTED QTY',
+    titleKey: 'suggested_quantity',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'requiredQuantity',
     width: 2,
-    title: 'REQUESTED QTY',
+    titleKey: 'required_quantity',
     sortable: true,
     alignText: 'right',
   },
   {
     key: 'remove',
     width: 1,
-    title: 'REMOVE',
+    titleKey: 'remove',
     alignText: 'center',
   },
 ];
@@ -397,9 +406,9 @@ const COLUMNS = [
  */
 export function checkForFinaliseError(requisition) {
   if (requisition.items.length === 0) {
-    return 'You need to add at least one item before finalising';
+    return modalStrings.add_at_least_one_item_before_finalising;
   } else if (requisition.totalRequiredQuantity === 0) {
-    return 'You need to record how much stock is required before finalising';
+    return modalStrings.record_stock_required_before_finalising;
   }
   return null;
 }

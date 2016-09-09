@@ -11,8 +11,9 @@ import { Expansion } from '../widgets/DataTable';
 import { PageInfo } from '../widgets';
 import globalStyles from '../globalStyles';
 import { formatDate, sortDataBy } from '../utilities';
+import { tableStrings } from '../localization';
 
-const DATA_TYPES_DISPLAYED = ['Item', 'ItemBatch', 'ItemLine', 'ItemCategory'];
+const DATA_TYPES_SYNCHRONISED = ['Item', 'ItemBatch', 'ItemCategory'];
 
 /**
 * Renders the page for all Items and their stock, with expansion of further details.
@@ -26,7 +27,7 @@ export class StockPage extends GenericTablePage {
     this.state.sortBy = 'name';
     this.state.items = props.database.objects('Item');
     this.columns = COLUMNS;
-    this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
+    this.dataTypesSynchronised = DATA_TYPES_SYNCHRONISED;
     this.getUpdatedData = this.getUpdatedData.bind(this);
   }
 
@@ -53,21 +54,21 @@ export class StockPage extends GenericTablePage {
     const infoColumns = [
       [
         {
-          title: 'Category:',
+          title: `${tableStrings.category}:`,
           info: item.categoryName,
         },
         {
-          title: 'Department:',
+          title: `${tableStrings.department}:`,
           info: item.departmentName,
         },
       ],
       [
         {
-          title: 'Number of batches:',
+          title: `${tableStrings.number_of_batches}:`,
           info: item.batches && item.batches.length,
         },
         {
-          title: 'Earliest expiry:',
+          title: `${tableStrings.earliest_expiry}:`,
           info: item.earliestExpiringBatch
                 && formatDate(item.earliestExpiringBatch.expiryDate),
         },
@@ -94,19 +95,19 @@ const COLUMNS = [
   {
     key: 'code',
     width: 1,
-    title: 'ITEM CODE',
+    titleKey: 'item_code',
     sortable: true,
   },
   {
     key: 'name',
     width: 5,
-    title: 'ITEM NAME',
+    titleKey: 'item_name',
     sortable: true,
   },
   {
     key: 'totalQuantity',
     width: 1,
-    title: 'STOCK ON HAND',
+    titleKey: 'stock_on_hand',
     sortable: true,
     alignText: 'right',
   },

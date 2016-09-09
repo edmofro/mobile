@@ -9,7 +9,7 @@ import React from 'react';
 import { GenericTablePage } from './GenericTablePage';
 import { sortDataBy } from '../utilities';
 
-const DATA_TYPES_DISPLAYED = ['Name'];
+const DATA_TYPES_SYNCHRONISED = ['Name'];
 
 /**
 * Renders the page for displaying Customers.
@@ -23,7 +23,7 @@ export class CustomersPage extends GenericTablePage {
     this.state.sortBy = 'name';
     this.state.customers = props.database.objects('Customer');
     this.columns = COLUMNS;
-    this.dataTypesDisplayed = DATA_TYPES_DISPLAYED;
+    this.dataTypesSynchronised = DATA_TYPES_SYNCHRONISED;
     this.getUpdatedData = this.getUpdatedData.bind(this);
     this.onRowPress = this.onRowPress.bind(this);
   }
@@ -79,19 +79,19 @@ const COLUMNS = [
   {
     key: 'code',
     width: 1,
-    title: 'CODE',
+    titleKey: 'code',
     sortable: true,
   },
   {
     key: 'name',
     width: 5,
-    title: 'NAME',
+    titleKey: 'name',
     sortable: true,
   },
   {
     key: 'numberOfTransactions',
     width: 1,
-    title: 'INVOICES',
+    titleKey: 'invoices',
     alignText: 'right',
     sortable: true,
   },

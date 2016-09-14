@@ -90,8 +90,8 @@ android {
         applicationId "com.msupplymobile"
         minSdkVersion 16
         targetSdkVersion 22
-        versionCode @replace
-        versionName "@replace"
+        versionCode 21
+        versionName "1.0.21"
         ndk {
             abiFilters "armeabi-v7a", "x86"
         }

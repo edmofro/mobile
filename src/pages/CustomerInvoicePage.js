@@ -205,6 +205,7 @@ export class CustomerInvoicePage extends GenericTablePage {
           <AutocompleteSelector
             options={database.objects('Item')}
             queryString={'name BEGINSWITH[c] $0 OR code BEGINSWITH[c] $0'}
+            queryStringSecondary={'name CONTAINS[c] $0'}
             sortByString={'name'}
             onSelect={(item) => {
               database.write(() => {
@@ -261,18 +262,20 @@ export class CustomerInvoicePage extends GenericTablePage {
               {this.renderPageInfo()}
               {this.renderSearchBar()}
             </View>
-            <View style={globalStyles.verticalContainer}>
-              <PageButton
-                style={globalStyles.topButton}
-                text={buttonStrings.new_item}
-                onPress={this.openItemSelector}
-                isDisabled={this.props.transaction.isFinalised}
-              />
-              <PageButton
-                text={buttonStrings.add_master_list_items}
-                onPress={this.onAddMasterItems}
-                isDisabled={this.props.transaction.isFinalised}
-              />
+            <View style={globalStyles.pageTopRightSectionContainer}>
+              <View style={globalStyles.verticalContainer}>
+                <PageButton
+                  style={globalStyles.topButton}
+                  text={buttonStrings.new_item}
+                  onPress={this.openItemSelector}
+                  isDisabled={this.props.transaction.isFinalised}
+                />
+                <PageButton
+                  text={buttonStrings.add_master_list_items}
+                  onPress={this.onAddMasterItems}
+                  isDisabled={this.props.transaction.isFinalised}
+                />
+              </View>
             </View>
           </View>
           {this.renderDataTable()}

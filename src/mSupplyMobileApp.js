@@ -8,6 +8,8 @@
 import React from 'react';
 import {
   Image,
+  TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import dismissKeyboard from 'dismissKeyboard'; // eslint-disable-line import/no-unresolved
@@ -25,6 +27,7 @@ import {
   SyncState,
 } from './widgets';
 
+import { migrateDataToVersion } from './dataMigration';
 import { Synchroniser } from './sync';
 import { SyncAuthenticator, UserAuthenticator } from './authentication';
 import { Database, schema, UIDatabase } from './database';
@@ -41,6 +44,7 @@ export default class mSupplyMobileApp extends React.Component {
     const database = new Database(schema);
     this.database = new UIDatabase(database);
     this.settings = new MobileAppSettings(this.database);
+    migrateDataToVersion(this.database, this.settings);
     this.userAuthenticator = new UserAuthenticator(this.database, this.settings);
     const syncAuthenticator = new SyncAuthenticator(this.database, this.settings);
     this.synchroniser = new Synchroniser(database, syncAuthenticator, this.settings);
@@ -65,6 +69,7 @@ export default class mSupplyMobileApp extends React.Component {
     this.runWithLoadingIndicator = this.runWithLoadingIndicator.bind(this);
     this.renderFinaliseButton = this.renderFinaliseButton.bind(this);
     this.renderLoadingIndicator = this.renderLoadingIndicator.bind(this);
+    this.renderLogo = this.renderLogo.bind(this);
     this.renderScene = this.renderScene.bind(this);
     this.renderSyncState = this.renderSyncState.bind(this);
     this.synchronise = this.synchronise.bind(this);
@@ -133,10 +138,15 @@ export default class mSupplyMobileApp extends React.Component {
 
   renderLogo() {
     return (
-      <Image
-        resizeMode="contain"
-        source={require('./images/logo.png')}
-      />
+      <TouchableWithoutFeedback
+        delayLongPress={3000}
+        onLongPress={() => this.setState({ isInAdminMode: !this.state.isInAdminMode })}
+      >
+        <Image
+          resizeMode="contain"
+          source={require('./images/logo.png')}
+        />
+      </TouchableWithoutFeedback>
     );
   }
 
@@ -175,6 +185,7 @@ export default class mSupplyMobileApp extends React.Component {
         logOut={this.logOut}
         currentUser={this.state.currentUser}
         runWithLoadingIndicator={this.runWithLoadingIndicator}
+        adminMode={this.state.isInAdminMode}
         {...extraProps}
       />);
   }
@@ -207,6 +218,10 @@ export default class mSupplyMobileApp extends React.Component {
           renderRightComponent={this.renderSyncState}
           navBarStyle={globalStyles.navBarStyle}
           backgroundColor={BACKGROUND_COLOR}
+          headerViewProps={{
+            onStartShouldSetResponderCapture: () => TextInput.State.currentlyFocusedField() != null,
+            onResponderRelease: dismissKeyboard,
+          }}
         />
         <FinaliseModal
           database={this.database}
